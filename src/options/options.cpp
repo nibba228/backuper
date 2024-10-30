@@ -13,15 +13,15 @@ namespace po = boost::program_options;
 auto ConfigureOptions()
     -> std::pair<po::options_description, po::positional_options_description> {
   po::options_description common("Allowed options");
-  common.add_options()("help", "get help message"),
+  common.add_options()("help", "get help message")
       ("full,f", po::value<bool>()->default_value(false),
-       "produce full backup"),
+       "produce full backup")
       ("increment,i", po::value<bool>()->default_value(false),
        "produce incremental backup");
 
   po::options_description hidden("Hidden options");
   hidden.add_options()
-      ("from", po::value<std::string>(), "directory to make backup of"),
+      ("from", po::value<std::string>(), "directory to make backup of")
       ("to", po::value<std::string>(), "directory to store backup to");
 
   po::options_description cmd_options;
