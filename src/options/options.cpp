@@ -22,8 +22,8 @@ auto ConfigureOptions()
 
   po::options_description hidden("Hidden options");
   hidden.add_options()
-      (kFrom.c_str(), po::value<std::string>(), "directory to make backup of")
-      (kTo.c_str(), po::value<std::string>(), "directory to store backup to");
+      (kFrom.c_str(), po::value<std::string>()->required(), "directory to make backup of")
+      (kTo.c_str(), po::value<std::string>()->required(), "directory to store backup to");
 
   po::options_description cmd_options;
   cmd_options.add(common).add(hidden);

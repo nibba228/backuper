@@ -1,0 +1,6 @@
+/home/erestor/mipt/cyberprotect/src/.build/CMakeFiles/my_backup.dir
+/home/erestor/mipt/cyberprotect/src/.build/CMakeFiles/edit_cache.dir
+/home/erestor/mipt/cyberprotect/src/.build/CMakeFiles/rebuild_cache.dir
+/home/erestor/mipt/cyberprotect/src/.build/options/CMakeFiles/options.dir
+/home/erestor/mipt/cyberprotect/src/.build/options/CMakeFiles/edit_cache.dir
+/home/erestor/mipt/cyberprotect/src/.build/options/CMakeFiles/rebuild_cache.dir

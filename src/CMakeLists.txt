@@ -7,7 +7,12 @@ project(my_backup)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
-find_package(Boost 1.82.0 COMPONENTS program_options REQUIRED)
+find_package(Boost 1.82.0 COMPONENTS
+  filesystem
+  program_options
+  system
+  REQUIRED
+)
 
 add_subdirectory(options)
 
@@ -19,7 +24,9 @@ target_include_directories(${PROJECT_NAME} PUBLIC "${PROJECT_BINARY_DIR}"
 
 find_package(fmt)
 target_link_libraries(my_backup
-                      Boost::program_options
-                      fmt::fmt
-                      options
+  Boost::filesystem
+  Boost::program_options
+  Boost::system
+  fmt::fmt
+  options
 )
