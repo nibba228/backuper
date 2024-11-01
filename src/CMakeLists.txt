@@ -14,12 +14,15 @@ find_package(Boost 1.82.0 COMPONENTS
   REQUIRED
 )
 
+add_subdirectory(backup)
 add_subdirectory(options)
 
 add_executable(${PROJECT_NAME} my_backup.cpp)
 
 target_include_directories(${PROJECT_NAME} PUBLIC "${PROJECT_BINARY_DIR}"
+                           "${PROJECT_SOURCE_DIR}/backup"
                            "${PROJECT_SOURCE_DIR}/options"
+                           "${PROJECT_SOURCE_DIR}/util"
 )
 
 find_package(fmt)
@@ -29,4 +32,5 @@ target_link_libraries(my_backup
   Boost::system
   fmt::fmt
   options
+  backup
 )
