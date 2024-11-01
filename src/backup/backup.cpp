@@ -33,7 +33,6 @@ void CreateSubdirForBackup(fs::path& to, system::error_code& error) {
     fs::create_directories(to, error);
     if (error) {
       fmt::print(util::color::kBoldRed, "Error while creating dir {}\n", str_path);
-      return;
     }
   }
 }
