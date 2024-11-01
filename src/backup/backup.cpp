@@ -24,7 +24,7 @@ void CreateSubdirForBackup(fs::path& to, system::error_code& error) {
   bool exists = fs::exists(to, error);
   const auto& str_path = to.generic_string();
 
-  if (error && error.value() != sys::errc::no_such_file_or_directory) {
+  if (error && error.value() != system::errc::no_such_file_or_directory) {
     fmt::print(util::color::kBoldRed, "Error while checking existance of dir {}\n", str_path);
     return;
   }
@@ -51,7 +51,7 @@ void CopyFromTo(const fs::path& from, const fs::path& to, system::error_code& er
 
 void PerformFullBackup(fs::path from, fs::path to, system::error_code& error) {
   CreateSubdirForBackup(to, error);
-  if (error) {
+  if (error && error != system::errc::no_such_file_or_directory) {
     return;
   }
 
