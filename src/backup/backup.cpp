@@ -33,6 +33,7 @@ void CreateSubdirForBackup(fs::path& to, system::error_code& error) {
     fs::remove_all(to, error);
     if (error) {
       fmt::print(util::color::kBoldRed, "Error while deleting duplicate dir {}\n", str_path);
+      return;
     }
   }
 
