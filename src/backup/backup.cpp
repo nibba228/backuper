@@ -29,17 +29,20 @@ void CreateSubdirForBackup(fs::path& to, system::error_code& error) {
     return;
   }
 
-  if (!exists) {
-    fs::create_directories(to, error);
+  if (exists) {
+    fs::remove_all(to, error);
     if (error) {
-      fmt::print(util::color::kBoldRed, "Error while creating dir {}\n", str_path);
+      fmt::print(util::color::kBoldRed, "Error while deleting duplicate dir {}\n", str_path);
     }
+  }
+
+  fs::create_directories(to, error);
+  if (error) {
+    fmt::print(util::color::kBoldRed, "Error while creating dir {}\n", str_path);
   }
 }
 
 void CopyFromTo(const fs::path& from, const fs::path& to, system::error_code& error) {
-  // TODO: deal with symlinks
-  // TODO: configure attempts for files creation
   fs::copy(from, to, fs::copy_options::recursive, error);
   if (error) {
     fmt::print(util::color::kBoldRed, "Error while copying dir {} to {}\n", from.generic_string(), to.generic_string());
@@ -51,7 +54,7 @@ void CopyFromTo(const fs::path& from, const fs::path& to, system::error_code& er
 
 void PerformFullBackup(fs::path from, fs::path to, system::error_code& error) {
   CreateSubdirForBackup(to, error);
-  if (error && error != system::errc::no_such_file_or_directory) {
+  if (error) {
     return;
   }
 
