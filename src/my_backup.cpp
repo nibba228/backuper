@@ -1,15 +1,15 @@
 #include "backup/backup.hpp"
 #include "options/options.hpp"
-#include "util/color.hpp"
+#include "util/format.hpp"
+
+#include <system_error>
 
 #include <fmt/color.h>
 
 #include <boost/program_options/variables_map.hpp>
-#include <boost/filesystem.hpp>
-#include <boost/system/errc.hpp>
+#include <boost/system/error_code.hpp>
 
 namespace po = boost::program_options;
-namespace fs = boost::filesystem;
 
 int main(int argc, char* argv[]) {
   po::variables_map opt_map;
@@ -25,7 +25,7 @@ int main(int argc, char* argv[]) {
   boost::system::error_code error;
   if (kIsFull == kIsIncrement) {
     if (kIsFull) {
-      fmt::print(util::color::kBoldRed, "You should use --full or --increment, not both\n");
+      util::format::PrintError("You should use --full or --increment, not both\n");
       return 1;
     }
 
@@ -38,7 +38,7 @@ int main(int argc, char* argv[]) {
   }
 
   if (error) {
-    fmt::print(util::color::kBoldRed, "Error: {}", error.message());
+    util::format::PrintError("Error: {}\n", error.message());
     return 1;
   }
 

@@ -10,7 +10,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 find_package(Boost 1.82.0 COMPONENTS
   filesystem
   program_options
-  system
   REQUIRED
 )
 
@@ -29,7 +28,6 @@ find_package(fmt)
 target_link_libraries(my_backup
   Boost::filesystem
   Boost::program_options
-  Boost::system
   fmt::fmt
   options
   backup
