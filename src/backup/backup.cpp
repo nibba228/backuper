@@ -2,7 +2,11 @@
 
 #include "../util/format.hpp"
 
+#include <algorithm>
+#include <ranges>
 #include <system_error>
+#include <unordered_map>
+#include <unordered_set>
 
 #include <fmt/chrono.h>
 
@@ -16,7 +20,8 @@ namespace system = boost::system;
 
 namespace {
 
-const int kNoSuchFile = static_cast<int>(system::errc::no_such_file_or_directory);
+const int kNoSuchFile =
+    static_cast<int>(system::errc::no_such_file_or_directory);
 
 bool CheckIsDirectory(const fs::path& to, system::error_code& error) {
   bool is_dir = fs::is_directory(to, error);
@@ -52,7 +57,8 @@ bool CheckExists(const fs::path& to, system::error_code& error) {
 void CreateDirs(const fs::path& to, system::error_code& error) {
   fs::create_directories(to, error);
   if (error) {
-    util::format::PrintError("Error while creating dir {}\n", to.generic_string());
+    util::format::PrintError("Error while creating dir {}\n",
+                             to.generic_string());
   }
 }
 
@@ -138,7 +144,7 @@ void PerformIncrementalBackup(fs::path from, fs::path to,
 
   fs::directory_entry latest_dir;
   std::time_t last_time{0};
-  
+
   for (auto&& entry : fs::directory_iterator{to}) {
     const auto time = fs::last_write_time(entry.path(), error);
     if (error) {
@@ -152,6 +158,22 @@ void PerformIncrementalBackup(fs::path from, fs::path to,
       latest_dir = std::move(entry);
     }
   }
+
+  std::unordered_map<std::string, std::unordered_set<std::string>>
+      latest_backup_tree;
+  const auto& backup_parent_path = latest_dir.path();
+  const size_t kPathLen = backup_parent_path.size();
+  for (auto&& entry : fs::recursive_directory_iterator{backup_parent_path}) {
+    const auto& str_path = entry.path().generic_string();
+    auto subrange = std::ranges::subrange(
+        std::ranges::mismatch(backup_parent_path.generic_string(), str_path)
+            .in2,
+        str_path.begin() + str_path.rfind('/') + 1);
+    std::string key{std::ranges::begin(subrange), std::ranges::end(subrange)};
+
+    latest_backup_tree[std::move(key)].emplace(str_path, kPathLen);
+  }
+
 }
 
 } // namespace backup
