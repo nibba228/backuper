@@ -5,8 +5,10 @@
 
 namespace backup {
 
+namespace {
 namespace fs = boost::filesystem;
 namespace system = boost::system;
+} // namespace
 
 void PerformFullBackup(fs::path from, fs::path to, system::error_code& error);
 

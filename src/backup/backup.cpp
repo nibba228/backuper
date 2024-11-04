@@ -1,6 +1,6 @@
 #include "backup.hpp"
 
-#include "../util/config.hpp"
+#include "../util/backup/full_backup_mark.hpp"
 #include "../util/format.hpp"
 
 #include <algorithm>
@@ -127,12 +127,26 @@ bool PerformIncrementalBackupFastPath(fs::path from, fs::path to,
   return !error && is_empty;
 }
 
-fs::path GetLatestWriteBackupDir(const fs::path& to,
+fs::path GetLatestFullBackupDir(const fs::path& to,
                                  system::error_code& error) {
-  return util::config::ReadFromConfig(to);
+  fs::path latest_full_backup;
+  for (const auto& entry : fs::directory_iterator{to, error}) {
+    if (util::backup::CheckIsFullBackup(entry, error) && latest_full_backup < entry) {
+      latest_full_backup = entry;
+    }
+    if (error) {
+      return {};
+    }
+  }
+
+  if (error) {
+    util::format::PrintError("Error while iterating through {}\n", to.generic_string());
+    return {};
+  }
+  return latest_full_backup;
 }
 
-BackupTree GetLatestWriteBackupDirTree(const fs::path& latest_backup,
+BackupTree GetLatestFullBackupDirTree(const fs::path& latest_backup,
                                        system::error_code& error) {
   BackupTree latest_backup_tree;
   const auto& str_backup_path = latest_backup.generic_string();
@@ -303,7 +317,7 @@ void PerformFullBackup(fs::path from, fs::path to, system::error_code& error) {
   }
 
   CopyFromTo(from, to, error);
-  util::config::WriteToConfig(to.parent_path(), to.generic_string());
+  util::backup::MarkAsFullBackup(to);
 }
 
 void PerformIncrementalBackup(fs::path from, fs::path to,
@@ -314,12 +328,12 @@ void PerformIncrementalBackup(fs::path from, fs::path to,
     return;
   }
 
-  auto latest_backup = GetLatestWriteBackupDir(to, error);
+  auto latest_backup = GetLatestFullBackupDir(to, error);
   if (error) {
     return;
   }
 
-  auto latest_backup_tree = GetLatestWriteBackupDirTree(latest_backup, error);
+  auto latest_backup_tree = GetLatestFullBackupDirTree(latest_backup, error);
   if (error) {
     return;
   }

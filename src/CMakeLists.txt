@@ -18,7 +18,7 @@ find_package(Boost 1.82.0 COMPONENTS
 
 add_subdirectory(backup)
 add_subdirectory(options)
-add_subdirectory(util)
+add_subdirectory(util/backup)
 
 add_executable(${PROJECT_NAME} my_backup.cpp)
 
@@ -26,6 +26,7 @@ target_include_directories(${PROJECT_NAME} PUBLIC "${PROJECT_BINARY_DIR}"
                            "${PROJECT_SOURCE_DIR}/backup"
                            "${PROJECT_SOURCE_DIR}/options"
                            "${PROJECT_SOURCE_DIR}/util"
+                           "${PROJECT_SOURCE_DIR}/util/backup"
 )
 
 find_package(fmt)
