@@ -19,10 +19,10 @@ namespace backup {
 namespace fs = boost::filesystem;
 namespace system = boost::system;
 
-
 namespace {
 
-using BackupTree = std::unordered_map<std::string, std::unordered_set<std::string>>;
+using BackupTree =
+    std::unordered_map<std::string, std::unordered_set<std::string>>;
 
 const int kNoSuchFile =
     static_cast<int>(system::errc::no_such_file_or_directory);
@@ -133,7 +133,7 @@ fs::path GetLatestWriteBackupDir(const fs::path& to,
 }
 
 BackupTree GetLatestWriteBackupDirTree(const fs::path& latest_backup,
-                                 system::error_code& error) {
+                                       system::error_code& error) {
   BackupTree latest_backup_tree;
   const auto& str_backup_path = latest_backup.generic_string();
   const size_t kPathLen = latest_backup.size();
@@ -177,12 +177,13 @@ auto GetEntryAndBackupEntryWriteTime(
     system::error_code& error) -> std::pair<std::time_t, std::time_t> {
   auto entry_time = fs::last_write_time(entry, error);
   if (error) {
-    util::format::PrintError("Error while obtaining dir {} write time\n", entry);
+    util::format::PrintError("Error while obtaining file {} write time\n",
+                             entry);
     return {};
   }
   auto backup_entry_time = fs::last_write_time(backup_entry, error);
   if (error) {
-    util::format::PrintError("Error while obtaining dir {} write time\n",
+    util::format::PrintError("Error while obtaining file {} write time\n",
                              backup_entry);
     return {};
   }
@@ -190,12 +191,12 @@ auto GetEntryAndBackupEntryWriteTime(
   return {entry_time, backup_entry_time};
 }
 
-void PerformIncrementalCopy(std::string_view entry, fs::path& to, std::string value,
+void PerformIncrementalCopy(std::string_view entry, fs::path& to,
+                            std::string value,
                             const fs::file_status& entry_stat,
                             bool& should_create_backup_dir,
                             system::error_code& error) {
-
-  if (!should_create_backup_dir) {
+  if (should_create_backup_dir) {
     CreateSubdirForBackup(to, error);
     if (error) {
       return;
@@ -215,15 +216,18 @@ void PerformIncrementalCopy(std::string_view entry, fs::path& to, std::string va
   CopyFromTo(entry, dest, error);
 }
 
-bool ShouldBackup(std::string_view entry, std::string_view backup_entry, const fs::file_status& entry_stat, const fs::file_status& backup_entry_stat, system::error_code& error) {
+bool ShouldBackup(std::string_view entry, std::string_view backup_entry,
+                  const fs::file_status& entry_stat,
+                  const fs::file_status& backup_entry_stat,
+                  system::error_code& error) {
   if (backup_entry_stat.type() == entry_stat.type()) {
     auto [entry_time, backup_entry_time] =
         GetEntryAndBackupEntryWriteTime(entry, backup_entry, error);
     if (error || (entry_stat.type() == fs::file_type::directory_file &&
-        entry_time <= backup_entry_time)) {
+                  entry_time <= backup_entry_time)) {
       return false;
     }
-    
+
     if (entry_time <= backup_entry_time) {
       auto [entry_sz, backup_entry_sz] =
           GetEntryAndBackupEntrySize(entry, backup_entry, error);
@@ -236,7 +240,9 @@ bool ShouldBackup(std::string_view entry, std::string_view backup_entry, const f
   return true;
 }
 
-void ProcessEntries(const fs::path& from, fs::path& to, const fs::path& latest_backup, BackupTree& latest_backup_tree, system::error_code& error) {
+void ProcessEntries(const fs::path& from, fs::path& to,
+                    const fs::path& latest_backup,
+                    BackupTree& latest_backup_tree, system::error_code& error) {
   bool should_create_backup_dir = true;
   const size_t kFromLen = from.generic_string().size();
 
@@ -262,7 +268,8 @@ void ProcessEntries(const fs::path& from, fs::path& to, const fs::path& latest_b
         return;
       }
 
-      if (!ShouldBackup(entry, backup_entry, entry_stat, backup_entry_stat, error)) {
+      if (!ShouldBackup(entry, backup_entry, entry_stat, backup_entry_stat,
+                        error)) {
         continue;
       }
       if (error) {
@@ -270,8 +277,8 @@ void ProcessEntries(const fs::path& from, fs::path& to, const fs::path& latest_b
       }
     }
 
-    PerformIncrementalCopy(entry, to, std::move(value), entry_stat, should_create_backup_dir,
-                           error);
+    PerformIncrementalCopy(entry, to, std::move(value), entry_stat,
+                           should_create_backup_dir, error);
     if (error) {
       return;
     }
@@ -288,7 +295,6 @@ void ProcessEntries(const fs::path& from, fs::path& to, const fs::path& latest_b
 }
 
 } // namespace
-
 
 void PerformFullBackup(fs::path from, fs::path to, system::error_code& error) {
   CreateSubdirForBackup(to, error);
