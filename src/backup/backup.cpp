@@ -14,11 +14,9 @@
 
 namespace backup {
 
+namespace {
 namespace fs = boost::filesystem;
 namespace system = boost::system;
-
-namespace {
-
 using BackupTree =
     std::unordered_map<std::string, std::unordered_set<std::string>>;
 
