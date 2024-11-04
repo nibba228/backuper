@@ -4,8 +4,6 @@
 #include "../util/format.hpp"
 
 #include <algorithm>
-#include <boost/filesystem/file_status.hpp>
-#include <boost/system/detail/error_code.hpp>
 #include <unordered_map>
 #include <unordered_set>
 
