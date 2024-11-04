@@ -4,6 +4,8 @@
 #include "../util/format.hpp"
 
 #include <algorithm>
+#include <boost/filesystem/file_status.hpp>
+#include <boost/system/detail/error_code.hpp>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -17,7 +19,10 @@ namespace backup {
 namespace fs = boost::filesystem;
 namespace system = boost::system;
 
+
 namespace {
+
+using BackupTree = std::unordered_map<std::string, std::unordered_set<std::string>>;
 
 const int kNoSuchFile =
     static_cast<int>(system::errc::no_such_file_or_directory);
@@ -127,10 +132,9 @@ fs::path GetLatestWriteBackupDir(const fs::path& to,
   return util::config::ReadFromConfig(to);
 }
 
-auto GetLatestWriteBackupDirTree(const fs::path& latest_backup,
+BackupTree GetLatestWriteBackupDirTree(const fs::path& latest_backup,
                                  system::error_code& error) {
-  std::unordered_map<std::string, std::unordered_set<std::string>>
-      latest_backup_tree;
+  BackupTree latest_backup_tree;
   const auto& str_backup_path = latest_backup.generic_string();
   const size_t kPathLen = latest_backup.size();
   for (const auto& entry :
@@ -186,10 +190,20 @@ auto GetEntryAndBackupEntryWriteTime(
   return {entry_time, backup_entry_time};
 }
 
-void PerformIncrementalCopy(std::string_view entry, std::string backup_entry,
+void PerformIncrementalCopy(std::string_view entry, fs::path& to, std::string value,
                             const fs::file_status& entry_stat,
+                            bool& should_create_backup_dir,
                             system::error_code& error) {
-  fs::path dest{std::move(backup_entry)};
+
+  if (!should_create_backup_dir) {
+    CreateSubdirForBackup(to, error);
+    if (error) {
+      return;
+    }
+    should_create_backup_dir = false;
+  }
+
+  fs::path dest{to.generic_string() + std::move(value)};
   if (entry_stat.type() != fs::file_type::directory_file) {
     dest.remove_filename();
   }
@@ -201,7 +215,80 @@ void PerformIncrementalCopy(std::string_view entry, std::string backup_entry,
   CopyFromTo(entry, dest, error);
 }
 
+bool ShouldBackup(std::string_view entry, std::string_view backup_entry, const fs::file_status& entry_stat, const fs::file_status& backup_entry_stat, system::error_code& error) {
+  if (backup_entry_stat.type() == entry_stat.type()) {
+    auto [entry_time, backup_entry_time] =
+        GetEntryAndBackupEntryWriteTime(entry, backup_entry, error);
+    if (error || (entry_stat.type() == fs::file_type::directory_file &&
+        entry_time <= backup_entry_time)) {
+      return false;
+    }
+    
+    if (entry_time <= backup_entry_time) {
+      auto [entry_sz, backup_entry_sz] =
+          GetEntryAndBackupEntrySize(entry, backup_entry, error);
+      if (error || entry_sz == backup_entry_sz) {
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
+void ProcessEntries(const fs::path& from, fs::path& to, const fs::path& latest_backup, BackupTree& latest_backup_tree, system::error_code& error) {
+  bool should_create_backup_dir = true;
+  const size_t kFromLen = from.generic_string().size();
+
+  for (auto it = fs::recursive_directory_iterator{from, error};
+       it != fs::recursive_directory_iterator{}; ++it) {
+    const auto& entry = it->path().generic_string();
+    std::string key{std::ranges::mismatch(from.generic_string(), entry).in2,
+                    entry.begin() + entry.rfind('/') + 1};
+
+    auto entry_stat = fs::status(entry, error);
+    if (error) {
+      util::format::PrintError("Error while getting info on {}\n", entry);
+      return;
+    }
+
+    std::string value(entry, kFromLen);
+    if (latest_backup_tree[std::move(key)].contains(value)) {
+      std::string backup_entry = latest_backup.generic_string() + value;
+      auto backup_entry_stat = fs::status(backup_entry, error);
+      if (error) {
+        util::format::PrintError("Error while getting info on {}\n",
+                                 backup_entry);
+        return;
+      }
+
+      if (!ShouldBackup(entry, backup_entry, entry_stat, backup_entry_stat, error)) {
+        continue;
+      }
+      if (error) {
+        return;
+      }
+    }
+
+    PerformIncrementalCopy(entry, to, std::move(value), entry_stat, should_create_backup_dir,
+                           error);
+    if (error) {
+      return;
+    }
+
+    if (entry_stat.type() == fs::file_type::directory_file) {
+      it.disable_recursion_pending();
+    }
+  }
+
+  if (error) {
+    util::format::PrintError("Error while iterating through dir {}\n",
+                             from.generic_string());
+  }
+}
+
 } // namespace
+
 
 void PerformFullBackup(fs::path from, fs::path to, system::error_code& error) {
   CreateSubdirForBackup(to, error);
@@ -231,76 +318,7 @@ void PerformIncrementalBackup(fs::path from, fs::path to,
     return;
   }
 
-  bool is_now_dir_created = false;
-  const size_t kFromLen = from.generic_string().size();
-  for (auto it = fs::recursive_directory_iterator{from, error};
-       it != fs::recursive_directory_iterator{}; ++it) {
-    const auto& entry = it->path().generic_string();
-    std::string key{std::ranges::mismatch(from.generic_string(), entry).in2,
-                    entry.begin() + entry.rfind('/') + 1};
-
-    auto entry_stat = fs::status(entry, error);
-    if (error) {
-      util::format::PrintError("Error while getting info on {}\n", entry);
-      return;
-    }
-
-    std::string value(entry, kFromLen);
-    if (latest_backup_tree[std::move(key)].contains(value)) {
-      std::string backup_entry = latest_backup.generic_string() + value;
-      auto backup_entry_stat = fs::status(backup_entry, error);
-      if (error) {
-        util::format::PrintError("Error while getting info on {}\n",
-                                 backup_entry);
-        return;
-      }
-
-      if (backup_entry_stat.type() == entry_stat.type()) {
-        auto [entry_time, backup_entry_time] =
-            GetEntryAndBackupEntryWriteTime(entry, backup_entry, error);
-        if (error) {
-          return;
-        }
-        if (entry_stat.type() == fs::file_type::directory_file &&
-            entry_time <= backup_entry_time) {
-          continue;
-        } else if (entry_time <= backup_entry_time) {
-          auto [entry_sz, backup_entry_sz] =
-              GetEntryAndBackupEntrySize(entry, backup_entry, error);
-          if (error) {
-            return;
-          }
-          if (entry_sz == backup_entry_sz) {
-            continue;
-          }
-        }
-      }
-    }
-
-    if (!is_now_dir_created) {
-      CreateSubdirForBackup(to, error);
-      if (error) {
-        return;
-      }
-      is_now_dir_created = true;
-    }
-
-    PerformIncrementalCopy(entry, to.generic_string() + value, entry_stat,
-                           error);
-    if (error) {
-      return;
-    }
-
-    if (entry_stat.type() == fs::file_type::directory_file) {
-      it.disable_recursion_pending();
-    }
-  }
-
-  if (error) {
-    util::format::PrintError("Error while iterating through dir {}\n",
-                             from.generic_string());
-    return;
-  }
+  ProcessEntries(from, to, latest_backup, latest_backup_tree, error);
 }
 
 } // namespace backup
