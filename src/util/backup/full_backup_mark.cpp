@@ -7,9 +7,9 @@
 
 namespace util::backup {
 
+namespace {
 namespace fs = boost::filesystem;
 
-namespace {
 const fs::path kFileToPut{".full_backup"};
 } // namespace
 
