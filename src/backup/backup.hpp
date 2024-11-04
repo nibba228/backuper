@@ -1,7 +1,5 @@
 #pragma once
 
-#include <system_error>
-
 #include <boost/filesystem.hpp>
 #include <boost/system/error_code.hpp>
 
