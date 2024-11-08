@@ -1,9 +1,13 @@
 #include "backup/backup.hpp"
-#include "options/options.hpp"
-#include "util/format.hpp"
+#include "../options/options.hpp"
+#include "../util/format.hpp"
+
+#include <iostream>
 
 #include <fmt/color.h>
 
+#include <boost/program_options/errors.hpp>
+#include <boost/program_options/options_description.hpp>
 #include <boost/program_options/variables_map.hpp>
 #include <boost/system/error_code.hpp>
 
@@ -11,9 +15,18 @@ namespace po = boost::program_options;
 
 int main(int argc, char* argv[]) {
   po::variables_map opt_map;
+  po::options_description help;
   try {
-    options::ParseCmdOptions(argc, argv, opt_map);
+    const bool kIsBackup = true;
+    help.add(options::ParseCmdOptions(argc, argv, opt_map, kIsBackup));
     po::notify(opt_map);
+  } catch (const po::required_option& e) {
+    if (opt_map.count(options::kHelp)) {
+      std::cout << std::move(help);
+      return 0;
+    }
+    util::format::PrintError("Error while parsing command: {}\n", e.what());
+    return 1;
   } catch (const std::exception& e) {
     util::format::PrintError("Error while parsing command: {}\n", e.what());
     return 1;
@@ -34,11 +47,11 @@ int main(int argc, char* argv[]) {
 
     fmt::print(fmt::fg(fmt::color::sky_blue),
                "Performing full backup due to unspecified options\n");
-    backup::PerformFullBackup(std::move(from), std::move(to), error);
+    backup::PerformFullBackup(from, std::move(to), error);
   } else if (kIsFull) {
-    backup::PerformFullBackup(std::move(from), std::move(to), error);
+    backup::PerformFullBackup(from, std::move(to), error);
   } else {
-    backup::PerformIncrementalBackup(std::move(from), std::move(to), error);
+    backup::PerformIncrementalBackup(from, std::move(to), error);
   }
 
   if (error) {

@@ -1,9 +1,11 @@
 #include "backup.hpp"
 
-#include "../util/backup/full_backup_mark.hpp"
-#include "../util/format.hpp"
+#include "../../util/backup/full_backup.hpp"
+#include "../../util/filesystem/copy.hpp"
+#include "../../util/format.hpp"
 
 #include <algorithm>
+#include <fmt/color.h>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -95,55 +97,22 @@ void CreateSubdirForBackup(fs::path& to, system::error_code& error) {
   CreateDirs(to, error);
 }
 
-void CopyFromTo(const fs::path& from, const fs::path& to,
-                system::error_code& error) {
-  fs::copy(from, to, fs::copy_options::recursive, error);
-  if (error) {
-    util::format::PrintError("Error while copying dir {} to {}\n",
-                             from.generic_string(), to.generic_string());
-    return;
-  }
-}
-
-bool PerformIncrementalBackupFastPath(fs::path from, fs::path to,
+bool PerformIncrementalBackupFastPath(const fs::path& from, fs::path to,
                                       system::error_code& error) {
-  bool is_empty = fs::is_empty(to, error);
-  if (error.value() == kNoSuchFile) {
-    is_empty = true;
-    error.clear();
-  }
+  auto [has_full_backup, _] = util::backup::GetLatestFullBackup(to, error);
 
-  if (!error && is_empty) {
-    PerformFullBackup(std::move(from), std::move(to), error);
+  if (!(error || has_full_backup)) {
+    PerformFullBackup(from, std::move(to), error);
   } else if (error) {
     util::format::PrintError("Error while checking {} emptiness\n",
                              to.generic_string());
   }
 
-  return !error && is_empty;
-}
-
-fs::path GetLatestFullBackupDir(const fs::path& to,
-                                 system::error_code& error) {
-  fs::path latest_full_backup;
-  for (const auto& entry : fs::directory_iterator{to, error}) {
-    if (util::backup::CheckIsFullBackup(entry, error) && latest_full_backup < entry) {
-      latest_full_backup = entry;
-    }
-    if (error) {
-      return {};
-    }
-  }
-
-  if (error) {
-    util::format::PrintError("Error while iterating through {}\n", to.generic_string());
-    return {};
-  }
-  return latest_full_backup;
+  return !(error || has_full_backup);
 }
 
 BackupTree GetLatestFullBackupDirTree(const fs::path& latest_backup,
-                                       system::error_code& error) {
+                                      system::error_code& error) {
   BackupTree latest_backup_tree;
   const auto& str_backup_path = latest_backup.generic_string();
   const size_t kPathLen = latest_backup.size();
@@ -223,7 +192,7 @@ void PerformIncrementalCopy(std::string_view entry, fs::path& to,
   if (error) {
     return;
   }
-  CopyFromTo(entry, dest, error);
+  util::filesystem::CopyFromTo(entry, dest, error, fs::copy_options::recursive);
 }
 
 bool ShouldBackup(std::string_view entry, std::string_view backup_entry,
@@ -301,22 +270,28 @@ void ProcessEntries(const fs::path& from, fs::path& to,
   if (error) {
     util::format::PrintError("Error while iterating through dir {}\n",
                              from.generic_string());
+  } else if (should_create_backup_dir) {
+    fmt::print(fmt::fg(fmt::color::sky_blue),
+               "The diff to the latest full backup is empty. Backup is not "
+               "created. To force its creation, provide -f flag instead of -i.\n");
   }
 }
 
 } // namespace
 
-void PerformFullBackup(fs::path from, fs::path to, system::error_code& error) {
+void PerformFullBackup(const fs::path& from, fs::path to, system::error_code& error) {
   CreateSubdirForBackup(to, error);
   if (error) {
     return;
   }
 
-  CopyFromTo(from, to, error);
+  util::filesystem::CopyFromTo(from, to, error, fs::copy_options::recursive);
+  fs::path new_backup_folder = to.filename();
+  util::backup::UpdateLatestFullBackup(to.parent_path(), to.generic_string());
   util::backup::MarkAsFullBackup(to);
 }
 
-void PerformIncrementalBackup(fs::path from, fs::path to,
+void PerformIncrementalBackup(const fs::path& from, fs::path to,
                               system::error_code& error) {
   bool is_fast_path_performed =
       PerformIncrementalBackupFastPath(from, to, error);
@@ -324,7 +299,7 @@ void PerformIncrementalBackup(fs::path from, fs::path to,
     return;
   }
 
-  auto latest_backup = GetLatestFullBackupDir(to, error);
+  auto [_, latest_backup] = util::backup::GetLatestFullBackup(to, error);
   if (error) {
     return;
   }
