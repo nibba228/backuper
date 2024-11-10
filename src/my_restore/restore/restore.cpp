@@ -112,7 +112,10 @@ void RestoreImpl(fs::path from, const fs::path& to, system::error_code& error) {
   }
  
   auto parent = from;
-  parent = parent.remove_trailing_separator().parent_path();
+  while (parent.generic_string().back() == fs::path::separator) {
+    parent.remove_trailing_separator();
+  }
+  parent = parent.parent_path();
   auto [has_full_backup, globally_latest_fb] = util::backup::GetLatestFullBackup(parent, error);
   if (!has_full_backup) {
     throw std::logic_error{"The provided backup directory is not a backup directory actually\n"};
