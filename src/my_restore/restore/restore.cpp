@@ -3,11 +3,7 @@
 #include "../../util/filesystem/copy.hpp"
 #include "../../util/format.hpp"
 
-#include <boost/filesystem/directory.hpp>
 #include <boost/filesystem/operations.hpp>
-#include <boost/filesystem/path.hpp>
-#include <boost/system/detail/errc.hpp>
-#include <boost/system/detail/error_code.hpp>
 #include <stdexcept>
 
 #include <boost/filesystem.hpp>
@@ -59,10 +55,11 @@ fs::path GetLatestFullBackup(const fs::path& from, const fs::path& parent_from, 
   return latest_full_backup;
 }
 
-void CopyNonExistingDirsAndFilesFromFullBackup(const fs::path& latest_full_backup, const fs::path& to, system::error_code& error) {
-  for (const auto& entry : fs::directory_iterator{latest_full_backup, error}) {
+void CopyFromToOverwriteDirs(const fs::path& from, const fs::path& to, fs::copy_options options, system::error_code& error) {
+  for (const auto& entry : fs::directory_iterator{from, error}) {
     if (fs::is_regular_file(entry, error)) {
-      fs::copy_file(entry, to / entry.path().filename(), fs::copy_options::skip_existing, error);
+      const auto file_options = fs::copy_options::skip_existing | fs::copy_options::update_existing | fs::copy_options::overwrite_existing;
+      fs::copy_file(entry, to / entry.path().filename(), options & file_options, error);
       if (error) {
         util::format::PrintError("Error while copying {} to {}\n", entry.path().generic_string(), to.generic_string());
         break;
@@ -71,13 +68,22 @@ void CopyNonExistingDirsAndFilesFromFullBackup(const fs::path& latest_full_backu
       auto dest = to / entry.path().filename();
       if (!fs::exists(dest, error) && error.value() == system::errc::no_such_file_or_directory) {
         error.clear();
-        fs::copy(entry, dest, fs::copy_options::recursive, error);
+        util::filesystem::CopyFromTo(entry, dest, error, options & fs::copy_options::recursive);
         if (error) {
-          util::format::PrintError("Error while copying dir {} to {}\n", entry.path().generic_string(), dest.generic_string());
           break;
         }
       } else if (error) {
         util::format::PrintError("Error while checking {} existence\n", dest.generic_string());
+        break;
+      }
+
+      fs::remove_all(dest, error);
+      if (error) {
+        util::format::PrintError("Error while removing dir {}\n", dest.generic_string());
+        break;
+      }
+      util::filesystem::CopyFromTo(entry, dest, error, options & fs::copy_options::recursive);
+      if (error) {
         break;
       }
     } else if (error) {
@@ -87,17 +93,16 @@ void CopyNonExistingDirsAndFilesFromFullBackup(const fs::path& latest_full_backu
   }
 
   if (error) {
-    util::format::PrintError("Error while iterating through dir {}\n", latest_full_backup.generic_string());
+    util::format::PrintError("Error while iterating through dir {}\n", from.generic_string());
   }
 }
 
 void CopyFromTo(const fs::path& latest_full_backup, const fs::path& from, const fs::path& to, system::error_code& error) {
-  util::filesystem::CopyFromTo(from, to, error, kDefaultOptions);
+  CopyFromToOverwriteDirs(latest_full_backup, to, kDefaultOptions, error);
   if (error) {
     return;
   }
-
-  CopyNonExistingDirsAndFilesFromFullBackup(latest_full_backup, to, error);
+  CopyFromToOverwriteDirs(from, to, kDefaultOptions, error);
 }
 
 void RestoreImpl(fs::path from, const fs::path& to, system::error_code& error) {
@@ -107,7 +112,7 @@ void RestoreImpl(fs::path from, const fs::path& to, system::error_code& error) {
   }
  
   auto parent = from;
-  parent = parent.remove_filename().parent_path();
+  parent = parent.remove_trailing_separator().parent_path();
   auto [has_full_backup, globally_latest_fb] = util::backup::GetLatestFullBackup(parent, error);
   if (!has_full_backup) {
     throw std::logic_error{"The provided backup directory is not a backup directory actually\n"};
