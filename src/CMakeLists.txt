@@ -17,11 +17,5 @@ find_package(Boost 1.82.0 COMPONENTS
 
 find_package(fmt)
 
-option(BACKUP "Build my_backup target")
-
-if(BACKUP)
-  add_subdirectory(my_backup)
-else()
-  add_subdirectory(my_restore)
-endif()
-
+add_subdirectory(my_backup)
+add_subdirectory(my_restore)
