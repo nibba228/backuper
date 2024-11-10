@@ -6,9 +6,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 add_compile_options(-fsanitize=address)
 add_link_options(-fsanitize=address)
 
-add_subdirectory(options)
-add_subdirectory(util)
-
 find_package(Boost 1.82.0 COMPONENTS
   filesystem
   program_options
@@ -17,6 +14,9 @@ find_package(Boost 1.82.0 COMPONENTS
 include_directories(${Boost_INCLUDE_DIRS})
 
 find_package(fmt)
+
+add_subdirectory(options)
+add_subdirectory(util)
 
 add_subdirectory(my_backup)
 add_subdirectory(my_restore)
